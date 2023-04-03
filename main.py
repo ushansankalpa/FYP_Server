@@ -1,11 +1,17 @@
 import pickle
 
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Body, Depends
 from pydantic import BaseModel
 from typing import Optional
 import numpy as np
 import tensorflow as tf
 from transformers import BertTokenizer
+
+from config.db_handle import registerUser, loginUser
+# from model.user import users
+from auth.auth_bearer import JWTBearer
+from auth.auth_handler import signJWT
+from schemas.user import UserSchema, UserLoginSchema
 
 app = FastAPI()
 
@@ -101,7 +107,7 @@ class Sentence(BaseModel):
 def preprocess_text(text):
     text = text.lower()
     text = tokenizer.texts_to_sequences([text])
-    text = tf.keras.preprocessing.sequence.pad_sequences(text, maxlen=48, padding='post')
+    text = tf.keras.preprocessing.sequence.pad_sequences(text, maxlen=48, truncating='pre')
     return text
 
 # Define the prediction endpoint
@@ -114,7 +120,22 @@ def predict_learning_style(sentence: Sentence):
     prediction = model.predict(processed_sentence)
 
     # Decode the prediction labels using the label encoder
-    predicted_label = label_encoder.inverse_transform(np.argmax(prediction, axis=-1))
+    predicted_label = label_encoder.inverse_transform(np.argmax(prediction, axis=-1))[0]
 
     # Return the predicted label
-    return {'learning_preference': predicted_label[0]}
+    return {'learning_preference': predicted_label}
+
+
+@app.post("/user/signup", tags=["user"])
+def create_user(user: UserSchema = Body(...)):
+    registerUser(user)
+    return signJWT(user.email)
+
+
+@app.post("/user/login", tags=["user"])
+def user_login(user: UserLoginSchema = Body(...)):
+    if loginUser(user):
+        return signJWT(user.email)
+    return {
+        "error": "Wrong login details!"
+    }

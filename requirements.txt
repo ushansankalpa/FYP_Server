@@ -1,7 +1,12 @@
 fastapi~=0.94.1
 uvicorn[standard]
 pydantic~=1.10.6
-numpy
-tensorflow
-transformers
+numpy~=1.24.2
+tensorflow~=2.11.0
+transformers~=4.27.1
 scikit-learn
+SQLAlchemy~=2.0.8
+PyMySQL~=1.0.3
+mysql~=0.0.3
+PyJWT~=2.6.0
+mysql-connector-python~=8.0.32
