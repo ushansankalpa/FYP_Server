@@ -72,28 +72,15 @@ def loginUser(userData):
 
 def getUserDataById(user_id):
     try:
-        sql = "SELECT userId, name,age, gender,neck,knee,ankle,biceps,forearm,wrist,weight, height, abdomen,chest,hip,thigh FROM usermeasurements WHERE userId = %s"
+        sql = "SELECT id, fullname, email FROM users WHERE email = %s"
         mycursor.execute(sql, (user_id,))
         result = mycursor.fetchone()
 
         if result:
             user_data = {
-                "userId": result[0],
-                "name": result[1],
-                "age": result[2],
-                "gender": result[3],
-                "neck": result[4],
-                "knee": result[5],
-                "ankle": result[6],
-                "biceps": result[7],
-                "forearm": result[8],
-                "wrist": result[9],
-                "weight": result[10],
-                "height": result[11],
-                "abdomen": result[12],
-                "chest": result[13],
-                "hip": result[14],
-                "thigh": result[15]
+                "id": result[0],
+                "fullname": result[1],
+                "email": result[2]
             }
             return user_data
         else:
