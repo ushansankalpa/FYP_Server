@@ -6,6 +6,7 @@ import secrets
 import jwt
 from decouple import config
 
+from schemas.user import UserSchema
 
 JWT_SECRET = secrets.token_hex(10)
 JWT_ALGORITHM = "HS256"
@@ -17,9 +18,12 @@ def token_response(token: str):
     }
 
 # function used for signing the JWT string
-def signJWT(user_id: str) -> Dict[str, str]:
+def signJWT(user: dict) -> Dict[str, str]:
     payload = {
-        "user_id": user_id,
+        "id": user['id'],
+        "fullname": user['fullname'],
+        "email": user['email'],
+        "role": user['role'],
         "expires": time.time() + 600
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

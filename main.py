@@ -10,9 +10,21 @@ from config.db_handle import registerUser, loginUser, getUserDataById
 from auth.auth_bearer import JWTBearer
 from auth.auth_handler import signJWT
 from schemas.user import UserSchema, UserLoginSchema
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
@@ -83,7 +95,7 @@ def create_user(user: UserSchema = Body(...)):
 @app.post("/user/login", tags=["user"])
 def user_login(user: UserLoginSchema = Body(...)):
     if loginUser(user):
-        return signJWT(user.email)
+        return getUserDataById(user.email)
     return {
         "error": "Wrong login details!"
     }

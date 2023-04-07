@@ -2,17 +2,19 @@ import mysql.connector
 import hashlib
 import hmac
 
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="learnMaster"
-)
-
-mycursor = mydb.cursor()
+from auth.auth_handler import signJWT
 
 
 def registerUser(Userdata):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
     try:
         hashed_password = hashlib.sha256(Userdata.password.encode()).hexdigest()
         users = (Userdata.fullname, Userdata.email, hashed_password, Userdata.role)
@@ -44,6 +46,15 @@ def registerUser(Userdata):
 
 
 def loginUser(userData):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
     try:
         hashed_password = hashlib.sha256(userData.password.encode()).hexdigest()
         query = "SELECT * FROM users WHERE email=%s AND password=%s"
@@ -71,8 +82,17 @@ def loginUser(userData):
 
 
 def getUserDataById(user_id):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
     try:
-        sql = "SELECT id, fullname, email FROM users WHERE email = %s"
+        sql = "SELECT id, fullname, email, role FROM users WHERE email = %s"
         mycursor.execute(sql, (user_id,))
         result = mycursor.fetchone()
 
@@ -80,9 +100,11 @@ def getUserDataById(user_id):
             user_data = {
                 "id": result[0],
                 "fullname": result[1],
-                "email": result[2]
+                "email": result[2],
+                "role": result[3]
             }
-            return user_data
+
+            return signJWT(user_data)
         else:
             return "No userData found!"
 

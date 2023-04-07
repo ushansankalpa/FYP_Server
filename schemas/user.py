@@ -21,6 +21,10 @@ class UserLoginSchema(BaseModel):
 
 
 class UserSchema(BaseModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(args, kwargs)
+        self.id = None
+
     fullname: str = Field(...)
     email: EmailStr = Field(...)
     password: str = Field(...)
