@@ -86,19 +86,38 @@ def predict_learning_style(sentence: Sentence):
     return {'learning_preference': predicted_label}
 
 
+def predictLearning_style(sentence):
+    # Preprocess the input sentence
+    processed_sentence = preprocess_text(sentence)
+
+    # Make a prediction with the loaded model
+    prediction = model.predict(processed_sentence)
+
+    # Decode the prediction labels using the label encoder
+    predicted_label = label_encoder.inverse_transform(np.argmax(prediction, axis=-1))[0]
+
+    # Return the predicted label
+    return predicted_label
+
+
 @app.post("/user/signup", tags=["user"])
 def create_user(user: UserSchema = Body(...)):
-    registerUser(user)
-    return signJWT(user.email)
-
+    learningstyle = predictLearning_style(user.sentence)
+    if registerUser(user, learningstyle):
+        return getUserDataById(user.email)
+    else:
+        return {
+            "error": "Unable to register!"
+        }
 
 @app.post("/user/login", tags=["user"])
 def user_login(user: UserLoginSchema = Body(...)):
     if loginUser(user):
         return getUserDataById(user.email)
-    return {
-        "error": "Wrong login details!"
-    }
+    else:
+        return {
+            "error": "Wrong login details!"
+        }
 
 
 @app.get("/user/data", tags=["user"])

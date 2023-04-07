@@ -5,7 +5,7 @@ import hmac
 from auth.auth_handler import signJWT
 
 
-def registerUser(Userdata):
+def registerUser(Userdata, learningstyle):
     mydb = mysql.connector.connect(
         host="localhost",
         user="root",
@@ -17,9 +17,9 @@ def registerUser(Userdata):
 
     try:
         hashed_password = hashlib.sha256(Userdata.password.encode()).hexdigest()
-        users = (Userdata.fullname, Userdata.email, hashed_password, Userdata.role)
-        sql = "INSERT INTO users (fullname, email, password, role) VALUES (%s, %s, %s, %s)"
-        mycursor.execute(sql, users)
+        user = (Userdata.fullname, Userdata.email, hashed_password, Userdata.role, learningstyle)
+        sql = "INSERT INTO user (fullname, email, password, role, learning_style) VALUES (%s, %s, %s, %s, %s)"
+        mycursor.execute(sql, user)
         mydb.commit()
 
         # Get the ID of the newly inserted user
@@ -31,7 +31,7 @@ def registerUser(Userdata):
         # mycursor.execute(measurements_sql, measurements_data)
         # mydb.commit()
 
-        return users
+        return user
 
     except mysql.connector.Error as error:
         print("Error while inserting data to MySQL: {}".format(error))

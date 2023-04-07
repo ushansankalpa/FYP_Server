@@ -21,14 +21,15 @@ class UserLoginSchema(BaseModel):
 
 
 class UserSchema(BaseModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(args, kwargs)
-        self.id = None
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(args, kwargs)
+    #     self.id = None
 
     fullname: str = Field(...)
     email: EmailStr = Field(...)
     password: str = Field(...)
     role: str = Field(...)
+    sentence: str = Field(...)
 
 
     class Config:
@@ -37,7 +38,8 @@ class UserSchema(BaseModel):
                 "fullname": "Joe Doe",
                 "email": "joe@xyz.com",
                 "password": "any",
-                "role": "user"
+                "role": "user",
+                "sentence": "I need to read a book"
             }
         }
 
