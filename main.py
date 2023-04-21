@@ -46,8 +46,8 @@ with open('learningstylepredictor.pickle', 'rb') as f:
     model_test = pickle.load(f)
 
 
-@app.post('/predict/test')
-async def predict(answers: list[int]):
+@app.post('/questionary/result/{user_id}')
+async def predict_by_test(user_id:int, answers: list[int]):
     # Make the prediction using the loaded model
     prediction = model_test.predict([answers])
 
@@ -118,6 +118,18 @@ async def create_user(user: UserSchema = Body(...)):
         return {
             "error": "Unable to register!"
         }
+
+
+# @app.post("/questionary/result/{user_id}")
+# async def questionary_result(data: list[int]):
+#     prediction = model_test.predict([data])
+#     return prediction
+#     # if update(user_id, learningstyle):
+#     #     return getUserDataById(user.email)
+#     # else:
+#     #     return {
+#     #         "error": "Unable to register!"
+#     #     }
 
 
 @app.post("/user/login", tags=["user"])
