@@ -12,7 +12,7 @@ from auth.auth_handler import signJWT
 
 
 def registerUser(Userdata, learningstyle):
-    mydb = mysql.connector.connect(
+    mydb =  mysql.connector.connect(
         host="localhost",
         user="root",
         password="",
@@ -27,7 +27,6 @@ def registerUser(Userdata, learningstyle):
         sql = "INSERT INTO user (fullname, email, password, role, learning_style) VALUES (%s, %s, %s, %s, %s)"
         mycursor.execute(sql, user)
         mydb.commit()
-
         # Get the ID of the newly inserted user
         # user_id = mycursor.lastrowid
 
@@ -36,7 +35,7 @@ def registerUser(Userdata, learningstyle):
         # measurements_sql = "INSERT INTO usermeasurements (userId, name,age, gender,neck,knee,ankle,biceps,forearm,wrist,weight, height, abdomen,chest,hip,thigh) VALUES (%s, %s, %s, %s,%s, %s, %s, %s,%s, %s, %s, %s,%s, %s, %s, %s)"
         # mycursor.execute(measurements_sql, measurements_data)
         # mydb.commit()
-
+        print(mydb.commit())
         return user
 
     except mysql.connector.Error as error:
@@ -66,6 +65,7 @@ def loginUser(userData):
         query = "SELECT * FROM user WHERE email=%s AND password=%s"
         mycursor.execute(query, (userData.email, hashed_password))
         result = mycursor.fetchone()
+
         # if result:
         #
         #     return True
@@ -73,11 +73,11 @@ def loginUser(userData):
         #
         #     return False
 
-        if result:
+        if result is not None and result[1]:
             # Return user ID along with login success status
-            return (True, result[0])
+            return True
         else:
-            return (False, None)
+            return False
 
     except mysql.connector.Error as error:
         print("Error while querying data from MySQL: {}".format(error))
@@ -159,6 +159,73 @@ def getUserDataById(user_id):
         mydb.close()
 
 
+def get_all_users():
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+    mycursor = mydb.cursor()
+
+    try:
+        # Execute a SELECT query to get all data rows from the resource table
+        mycursor.execute("SELECT * FROM user")
+
+        result = []
+        for row in mycursor.fetchall():
+            result.append({
+                'id': row[0],
+                'fullname': row[1],
+                'email': row[2],
+                'role': row[4],
+                'learning_style': row[5]
+            })
+
+        return result
+
+    except mysql.connector.Error as error:
+        print("Error while updating data in MySQL: {}".format(error))
+        try:
+            mydb.rollback()
+        except mysql.connector.Error as rollback_error:
+            print("Error while rolling back changes to MySQL: {}".format(rollback_error))
+        return (False, "Unable to update")
+    finally:
+        mydb.close()
+
+def get_learning_styles():
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+    mycursor = mydb.cursor()
+
+    try:
+        # Execute a SELECT query to get all data rows from the resource table
+        mycursor.execute("SELECT learning_style, COUNT(*) AS value FROM user GROUP BY learning_style;")
+
+        result = []
+        for row in mycursor.fetchall():
+            result.append({
+                'name': row[0],
+                'value': row[1]
+            })
+
+        return result
+
+    except mysql.connector.Error as error:
+        print("Error while updating data in MySQL: {}".format(error))
+        try:
+            mydb.rollback()
+        except mysql.connector.Error as rollback_error:
+            print("Error while rolling back changes to MySQL: {}".format(rollback_error))
+        return (False, "Unable to update")
+    finally:
+        mydb.close()
+
 def get_all_resources():
     mydb = mysql.connector.connect(
         host="localhost",
@@ -172,28 +239,6 @@ def get_all_resources():
         # Execute a SELECT query to get all data rows from the resource table
         mycursor.execute("SELECT * FROM resource")
         os.makedirs("images", exist_ok=True)
-
-        # Fetch all rows and store them in a list of dictionaries
-        # result = []
-        # for row in mycursor.fetchall():
-        #     image_path = None
-        #     if row[4] is not None:
-        #         image_data = row[4]
-        #         filename = str(uuid.uuid4()) + ".jpg"
-        #         image_path = os.path.join("images", filename)
-        #         with open(image_path, "wb") as f:
-        #             f.write(image_data)
-        #     result.append({
-        #         'res_id': row[0],
-        #         'title': row[1],
-        #         'desc': row[2],
-        #         'link': row[3],
-        #         'image': image_path,
-        #         'type': row[5],
-        #         'field': row[6]
-        #     })
-        #
-        # return result
 
         result = []
         for row in mycursor.fetchall():
@@ -224,7 +269,7 @@ def get_all_resources():
         mydb.close()
 
 
-def updateUserLearninStyle(data):
+def updateUserLearninStyle(learning_style, id):
     mydb = mysql.connector.connect(
         host="localhost",
         user="root",
@@ -235,7 +280,7 @@ def updateUserLearninStyle(data):
 
     try:
         sql = "UPDATE user SET learning_style = %s WHERE id = %s"
-        val = (data.learning_style, data.id)
+        val = (learning_style, id)
         mycursor.execute(sql, val)
         mydb.commit()
         print(mycursor.rowcount, "record(s) affected")

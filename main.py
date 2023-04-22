@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 from transformers import BertTokenizer
 from config.db_handle import registerUser, loginUser, getUserDataById, getUserDataByEmail, get_all_resources, \
-    make_ratings, export_csv, getResDataByIds
+    make_ratings, export_csv, getResDataByIds, updateUserLearninStyle, get_all_users, get_learning_styles
 # from model.user import users
 from auth.auth_bearer import JWTBearer
 from auth.auth_handler import signJWT
@@ -47,12 +47,22 @@ with open('learningstylepredictor.pickle', 'rb') as f:
 
 
 @app.post('/questionary/result/{user_id}')
-async def predict_by_test(user_id:int, answers: list[int]):
+def predict_by_test(user_id:int, answers: list[int]):
     # Make the prediction using the loaded model
     prediction = model_test.predict([answers])
+    print(round(prediction[0]))
+    learning_style = ''
+    if round(prediction[0]) == 0:
+        learning_style = 'Visual'
+    elif round(prediction[0]) == 1:
+        learning_style = 'Kinesthetic'
+    elif round(prediction[0]) == 2:
+        learning_style = 'Auditory'
+
+    data = updateUserLearninStyle(learning_style, user_id)
 
     # Return the predicted learning preference
-    return {'learning_preference': prediction[0]}
+    return data
 
 
 # Load the tokenizer and label encoder from pickle files
@@ -81,7 +91,7 @@ def preprocess_text(text):
 
 # Define the prediction endpoint
 @app.post('/predict')
-async def predict_learning_style(sentence: Sentence):
+def predict_learning_style(sentence: Sentence):
     # Preprocess the input sentence
     processed_sentence = preprocess_text(sentence.sentence)
 
@@ -95,7 +105,7 @@ async def predict_learning_style(sentence: Sentence):
     return {'learning_preference': predicted_label}
 
 
-async def predictLearning_style(sentence):
+def predictLearning_style(sentence):
     # Preprocess the input sentence
     processed_sentence = preprocess_text(sentence)
 
@@ -110,10 +120,10 @@ async def predictLearning_style(sentence):
 
 
 @app.post("/user/signup", tags=["user"])
-async def create_user(user: UserSchema = Body(...)):
+def create_user(user: UserSchema = Body(...)):
     learningstyle = predictLearning_style(user.sentence)
     if registerUser(user, learningstyle):
-        return getUserDataById(user.email)
+        return getUserDataByEmail(user.email)
     else:
         return {
             "error": "Unable to register!"
@@ -133,7 +143,7 @@ async def create_user(user: UserSchema = Body(...)):
 
 
 @app.post("/user/login", tags=["user"])
-async def user_login(user: UserLoginSchema = Body(...)):
+def user_login(user: UserLoginSchema = Body(...)):
     if loginUser(user):
         return getUserDataByEmail(user.email)
     else:
@@ -143,31 +153,137 @@ async def user_login(user: UserLoginSchema = Body(...)):
 
 
 @app.get("/user/data/{id}", dependencies=[Depends(JWTBearer())], tags=["user"])
-async def user_data(id: int):
+def user_data(id: int):
     data = getUserDataById(id)
     return data
 
 
 @app.get("/res/data", dependencies=[Depends(JWTBearer())], tags=["resources"])
-async def res_data():
+def res_data():
     data = get_all_resources()
     return data
 
+@app.get("/user/data", tags=["user"])
+def user_data():
+    data = get_all_users()
+    return data
+
+@app.get("/get/learning_styles")
+def user_data():
+    data = get_learning_styles()
+    return data
 
 @app.post("/res/rate/{res_id}/{user_id}")
-async def res_rate(res_id: int, user_id: int, rate: Ratings = Body(...)):
+def res_rate(res_id: int, user_id: int, rate: Ratings = Body(...)):
     data = make_ratings(rate, res_id, user_id)
     return data
 
 
 @app.get("/export-csv")
-async def export_csv_file():
+def export_csv_file():
     data = export_csv()
     return data
 
 
+
+
+
+ratings = {}
+learning_styles = {}
+items = set()
+def read_csv():
+    with open('ratings.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            user_id = int(row['user_id'])
+            res_id = int(row['res_id'])
+            rate = float(row['rate'])
+            learning_style = row['learning_style']
+            items.add(res_id)
+            if user_id not in ratings:
+                ratings[user_id] = {}
+            ratings[user_id][res_id] = rate
+            if user_id not in learning_styles:
+                learning_styles[user_id] = learning_style
+
+# Define a function to compute the cosine similarity between two users
+def cosine_sim(user1, user2):
+    print(user1)
+    common_items = set(ratings[user1].keys()) & set(ratings[user2].keys())
+    if len(common_items) == 0:
+        return 0.0
+    numerator = sum([ratings[user1][item] * ratings[user2][item] for item in common_items])
+    denominator = np.sqrt(sum([ratings[user1][item]**2 for item in ratings[user1]]) * sum([ratings[user2][item]**2 for item in ratings[user2]]))
+    return numerator / denominator
+
+# Define a function to get the top k most similar users to a given user
+def get_top_similar_users(user, learning_style, k=5):
+    similarities = [(cosine_sim(user, other_user), other_user) for other_user in ratings if other_user != user and learning_styles.get(other_user) == learning_style]
+    print(similarities)
+    similarities.sort(reverse=True)
+    return [other_user for similarity, other_user in similarities[:k]]
+
+# Define a function to predict a user's rating for a given item using k-NN collaborative filtering
+def predict_rating(user, item, k=5):
+    if user not in ratings:
+        return 0.0
+    if item not in items:
+        return 0.0
+    if user not in learning_styles:
+        return 0.0  # or return a default rating
+    similar_users = get_top_similar_users(user, learning_styles[user], k)
+    print(learning_styles[user])
+    numerator = sum([cosine_sim(user, other_user) * (ratings[other_user].get(item, 0.0) - np.mean([rating for rating in ratings[other_user].values() if rating > 0])) for other_user in similar_users])
+    denominator = sum([cosine_sim(user, other_user) for other_user in similar_users])
+    if denominator == 0.0:
+        return 0.0
+    else:
+        return np.mean([rating for rating in ratings[user].values() if rating > 0]) + (numerator / denominator)
+
+# Define a FastAPI endpoint to get a list of recommended resources for a given user
+@app.get('/recommendations/res')
+def get_recommendations(user_id: int, k: int = 5):
+    read_csv()
+    recommendations = []
+    for item in items:
+        rating = predict_rating(user_id, item, k)
+        if rating > 0.0:
+            recommendations.append({'res_id': item, 'rating': rating})
+    recommendations.sort(reverse=True, key=lambda x: x['rating'])
+
+    rec = recommendations[:k]
+    print(rec)
+    res_list = [{'res_id': item['res_id'], 'rating': item['rating']} for item in rec]
+    res_id_list = [r['res_id'] for r in rec]
+
+    data = getResDataByIds(res_list)
+    print(data)
+    if data:
+        data.sort(reverse=True, key=lambda x: x['rating'])
+    return data
+
+
+
 @app.get("/res/recommendation")
-def res_recommendation(user: str, n: int = 5, k: int = 5):
+def res_recommendation(user_id: int, n: int = 5, k: int = 5):
+    recommendations = []
+    for item in items:
+        rating = predict_rating(user_id, item, k)
+        if rating > 0.0:
+            recommendations.append({'res_id': item, 'rating': rating})
+    recommendations.sort(reverse=True, key=lambda x: x['rating'])
+
+    rec = recommendations[:k]
+    print(rec)
+    res_list = [{'res_id': item['res_id'], 'rating': item['rating']} for item in rec]
+    res_id_list = [r['res_id'] for r in rec]
+
+    data = getResDataByIds(res_list)
+    print(data)
+    # if data:
+    #     data.sort(reverse=True, key=lambda x: x['rating'])
+    return data
+
     # ratings_data = pd.read_csv('ratings.csv')
     # # Create user-item matrix
     # print(ratings_data)
@@ -183,72 +299,5 @@ def res_recommendation(user: str, n: int = 5, k: int = 5):
     #
     # data = recommend_items(3, user_similarity_matrix, user_item_matrix)
     # return data
-    top_n_items = recommend_items(user, n, k)
-    return top_n_items
-
-
-ratings = {}
-learning_styles = {}
-items = set()
-with open('ratings.csv', 'r') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        user_id = int(row['user_id'])
-        res_id = int(row['res_id'])
-        rate = float(row['rate'])
-        learning_style = row['learning_style']
-        items.add(res_id)
-        if user_id not in ratings:
-            ratings[user_id] = {}
-        ratings[user_id][res_id] = rate
-        if user_id not in learning_styles:
-            learning_styles[user_id] = learning_style
-
-# Define a function to compute the cosine similarity between two users
-def cosine_sim(user1, user2):
-    common_items = set(ratings[user1].keys()) & set(ratings[user2].keys())
-    if len(common_items) == 0:
-        return 0.0
-    numerator = sum([ratings[user1][item] * ratings[user2][item] for item in common_items])
-    denominator = np.sqrt(sum([ratings[user1][item]**2 for item in ratings[user1]]) * sum([ratings[user2][item]**2 for item in ratings[user2]]))
-    return numerator / denominator
-
-# Define a function to get the top k most similar users to a given user
-def get_top_similar_users(user, learning_style, k=5):
-    similarities = [(cosine_sim(user, other_user), other_user) for other_user in ratings if other_user != user and learning_styles.get(other_user) == learning_style]
-    similarities.sort(reverse=True)
-    return [other_user for similarity, other_user in similarities[:k]]
-
-# Define a function to predict a user's rating for a given item using k-NN collaborative filtering
-def predict_rating(user, item, k=5):
-    if user not in ratings:
-        return 0.0
-    if item not in items:
-        return 0.0
-    if user not in learning_styles:
-        return 0.0  # or return a default rating
-    similar_users = get_top_similar_users(user, learning_styles[user], k)
-    numerator = sum([cosine_sim(user, other_user) * (ratings[other_user].get(item, 0.0) - np.mean([rating for rating in ratings[other_user].values() if rating > 0])) for other_user in similar_users])
-    denominator = sum([cosine_sim(user, other_user) for other_user in similar_users])
-    if denominator == 0.0:
-        return 0.0
-    else:
-        return np.mean([rating for rating in ratings[user].values() if rating > 0]) + (numerator / denominator)
-
-# Define a FastAPI endpoint to get a list of recommended resources for a given user
-@app.get('/recommendations/res')
-def get_recommendations(user_id: int, k: int = 5):
-    recommendations = []
-    for item in items:
-        rating = predict_rating(user_id, item, k)
-        if rating > 0.0:
-            recommendations.append({'res_id': item, 'rating': rating})
-    recommendations.sort(reverse=True, key=lambda x: x['rating'])
-
-    rec = recommendations[:k]
-    res_list = [{'res_id': item['res_id'], 'rating': item['rating']} for item in rec]
-    res_id_list = [r['res_id'] for r in rec]
-
-    data = getResDataByIds(res_list)
-    data.sort(reverse=True, key=lambda x: x['rating'])
-    return data
+    # top_n_items = recommend_items(user, n, k)
+    # return top_n_items
