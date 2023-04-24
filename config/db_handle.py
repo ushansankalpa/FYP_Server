@@ -86,6 +86,40 @@ def loginUser(userData):
     finally:
         mydb.close()
 
+def getUserDataByEmail_Auth(user_id):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
+    try:
+        sql = "SELECT id, fullname, email, role, learning_style FROM user WHERE email = %s"
+        mycursor.execute(sql, (user_id,))
+        result = mycursor.fetchone()
+
+        if result:
+            user_data = {
+                "id": result[0],
+                "fullname": result[1],
+                "email": result[2],
+                "role": result[3],
+                "learning_style": result[4]
+            }
+
+            return user_data
+        else:
+            return "No userData found!"
+
+    except mysql.connector.Error as error:
+        print("Error while retrieving data from MySQL: {}".format(error))
+        return "No userData found!"
+
+    finally:
+        mydb.close()
 
 def getUserDataByEmail(user_id):
     mydb = mysql.connector.connect(
@@ -269,6 +303,38 @@ def get_all_resources():
         mydb.close()
 
 
+def insert_resources(res):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
+    try:
+        image_data = base64.b64decode(res['image'])
+
+        resource = (res['title'], res['desc'], res['link'], image_data, res['type'], res['field'])
+        sql = "INSERT INTO resource (title, `desc`, link, image, type, field) VALUES (%s, %s, %s, %s, %s, %s)"
+        mycursor.execute(sql, resource)
+        mydb.commit()
+
+        return resource
+
+    except mysql.connector.Error as error:
+        print("Error while inserting data to MySQL: {}".format(error))
+        try:
+            mydb.rollback()
+        except mysql.connector.Error as rollback_error:
+            print("Error while rolling back changes to MySQL: {}".format(rollback_error))
+        return False
+
+    finally:
+        mydb.close()
+
+
 def updateUserLearninStyle(learning_style, id):
     mydb = mysql.connector.connect(
         host="localhost",
@@ -435,3 +501,32 @@ def getResDataByIds(res_id_list):
 
     finally:
         mydb.close()
+
+
+def get_similar_users(user_id, learning_style, k):
+
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
+    try:
+        query = "SELECT id, learning_style FROM user WHERE id != %s AND learning_style = %s LIMIT %s"
+        mycursor.execute(query, (user_id, learning_style, k))
+
+        similar_users = [row[0] for row in mycursor.fetchall()]
+
+        return similar_users
+
+    except mysql.connector.Error as error:
+        print("Error while retrieving data from MySQL: {}".format(error))
+        return "No userData found!"
+
+    finally:
+        mydb.close()
+
+
