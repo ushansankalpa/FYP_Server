@@ -23,6 +23,7 @@ def signJWT(user: dict) -> Dict[str, str]:
         "id": user['id'],
         "fullname": user['fullname'],
         "email": user['email'],
+        "learning_style": user['learning_style'],
         "role": user['role'],
         "expires": time.time() + 600
     }

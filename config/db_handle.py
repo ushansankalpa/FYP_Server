@@ -314,9 +314,17 @@ def insert_resources(res):
     mycursor = mydb.cursor()
 
     try:
-        image_data = base64.b64decode(res['image'])
+        # image_data = base64.b64decode(res['image'])
+        #image_data = base64.b64decode(res['image'].split(',')[1])
+        # image_data = res['image'].file.read()
+        # encoded_image = base64.b64encode(image_data).decode()
 
-        resource = (res['title'], res['desc'], res['link'], image_data, res['type'], res['field'])
+
+        with open(res['image'], 'rb') as f:
+            image_data = f.read()
+            encoded_image = base64.b64encode(image_data).decode()
+
+        resource = (res['title'], res['desc'], res['link'], encoded_image, res['type'], res['field'])
         sql = "INSERT INTO resource (title, `desc`, link, image, type, field) VALUES (%s, %s, %s, %s, %s, %s)"
         mycursor.execute(sql, resource)
         mydb.commit()
@@ -521,6 +529,66 @@ def get_similar_users(user_id, learning_style, k):
         similar_users = [row[0] for row in mycursor.fetchall()]
 
         return similar_users
+
+    except mysql.connector.Error as error:
+        print("Error while retrieving data from MySQL: {}".format(error))
+        return "No userData found!"
+
+    finally:
+        mydb.close()
+
+
+def res_search_query(payload):
+
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+
+    mycursor = mydb.cursor()
+
+    try:
+        types = payload['type']
+        field = payload['field']
+        if types == 'all' and field == 'all':
+            print('allll')
+            query = "SELECT * FROM resource"
+            mycursor.execute(query)
+        elif types == 'all' and field != 'all':
+            print('field')
+            query = "SELECT * FROM resource WHERE field = %s"
+            mycursor.execute(query, field)
+        elif field == 'all' and types != 'all':
+            print('type')
+            query = "SELECT * FROM resource WHERE `type` = %s"
+            mycursor.execute(query, types)
+        # elif field == 'null' or types == 'null':
+        #     query = "SELECT * FROM resource"
+        #     mycursor.execute(query)
+        else:
+            print('typefield')
+            query = "SELECT * FROM resource WHERE `type` = %s AND field = %s"
+            mycursor.execute(query, (types, field))
+
+        result = []
+        for row in mycursor.fetchall():
+            image_path = None
+            if row[4] is not None:
+                image_data = row[4]
+                image_path = "data:image/jpeg;base64," + base64.b64encode(image_data).decode()
+            result.append({
+                'res_id': row[0],
+                'title': row[1],
+                'desc': row[2],
+                'link': row[3],
+                'image': image_path,
+                'type': row[5],
+                'field': row[6],
+            })
+
+        return result
 
     except mysql.connector.Error as error:
         print("Error while retrieving data from MySQL: {}".format(error))

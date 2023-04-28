@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 from transformers import BertTokenizer
 from config.db_handle import registerUser, loginUser, getUserDataById, getUserDataByEmail, get_all_resources, \
     make_ratings, export_csv, getResDataByIds, updateUserLearninStyle, get_all_users, get_learning_styles, \
-    get_similar_users, insert_resources, getUserDataByEmail_Auth
+    get_similar_users, insert_resources, getUserDataByEmail_Auth, res_search_query
 # from model.user import users
 from auth.auth_bearer import JWTBearer
 from auth.auth_handler import signJWT
@@ -199,6 +199,13 @@ def export_csv_file():
     return data
 
 
+@app.post("/search/resources")
+def search_resources(res = Body(...)):
+    print(res)
+    data = res_search_query(res)
+    return data
+
+
 
 
 
@@ -370,7 +377,7 @@ def cosine_sim(user1, user2, ratings_df):
 #         return np.dot(user1_vec, user2_vec) / (np.linalg.norm(user1_vec) * np.linalg.norm(user2_vec))
 
 # Define a function to predict the rating for an item
-def predict_rating(user_id, item_id, k=1000):
+def predict_rating_2(user_id, item_id, k=1000):
     ratings_df = read_ratings_data()
     similar_users = get_top_similar_users(user_id, ratings_df.loc[ratings_df['user_id'] == user_id, 'learning_style'].values[0], k)
     print(similar_users)
@@ -401,7 +408,7 @@ def predict_rating(user_id, item_id, k=1000):
 
 
 @app.get("/recommendations/{user_id}")
-async def get_recommendations(user_id: int):
+def get_recommendations(user_id: int):
     # Load ratings data from CSV
     ratings_df = pd.read_csv("ratings.csv")
 
@@ -594,7 +601,7 @@ user_df = pd.read_sql_query('SELECT * From user', cnx)
 # user_df = pd.read_sql_table('user', engine)
 
 # Define a function to get similar users based on their learning_style
-def get_similar_users(user_id):
+def get_similar_users_2(user_id):
     # Get the learning_style of the user
     user_style = user_df.loc[user_df['id'] == user_id, 'learning_style'].values[0]
     # Get the users with the same learning_style
@@ -608,7 +615,7 @@ def recommend_items(user_id):
     # Check if the user_id exists in ratings.csv
     if user_id in ratings_df['user_id'].unique():
         # Get the similar users based on their learning_style
-        similar_users = get_similar_users(user_id)
+        similar_users = get_similar_users_2(user_id)
         # Get the items rated by the similar users
         similar_items = ratings_df[ratings_df['user_id'].isin(similar_users)]
         # Get the items that the current user has not rated
@@ -628,14 +635,14 @@ def recommend_items(user_id):
         kmeans = KMeans(n_clusters=3)
         user_df['cluster'] = kmeans.fit_predict(learning_style_encoded)
         # Get the users in the same cluster as the current user
-        cluster_users = user_df[user_df['user_id'] != user_id][user_df['cluster'] == user_df.loc[user_df['user_id'] == user_id, 'cluster'].values[0]]
+        cluster_users = user_df[user_df['id'] != user_id][user_df['cluster'] == user_df.loc[user_df['id'] == user_id, 'cluster'].values[0]]
         # Get the resources recommended by the users in the same cluster
         cnx = mysql.connector.connect(host="localhost",
                                       user="root",
                                       password="",
                                       database="learnMaster")
         resource_df = pd.read_sql_query(
-            "SELECT * FROM resource WHERE user_id IN ({})".format(','.join(str(x) for x in cluster_users['user_id'])), cnx)
+            "SELECT * FROM resource WHERE id IN ({})".format(','.join(str(x) for x in cluster_users['id'])), cnx)
         # Get the average rating for each resource
         resource_ratings = resource_df.groupby('res_id')['rate'].mean()
         # Sort the resources based on their average rating
