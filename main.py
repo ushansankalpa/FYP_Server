@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 from transformers import BertTokenizer
 from config.db_handle import registerUser, loginUser, getUserDataById, getUserDataByEmail, get_all_resources, \
     make_ratings, export_csv, getResDataByIds, updateUserLearninStyle, get_all_users, get_learning_styles, \
-    get_similar_users, insert_resources, getUserDataByEmail_Auth, res_search_query
+    get_similar_users, insert_resources, getUserDataByEmail_Auth, res_search_query, my_ratings
 # from model.user import users
 from auth.auth_bearer import JWTBearer
 from auth.auth_handler import signJWT
@@ -191,6 +191,15 @@ def user_data():
 def res_rate(res_id: int, user_id: int, rate: Ratings = Body(...)):
     data = make_ratings(rate, res_id, user_id)
     return data
+
+@app.get("/res/fav/{user_id}")
+def my_rate(user_id: int):
+    data = my_ratings(user_id)
+    if data:
+        return data
+    else:
+        return {'no data found'}
+
 
 
 @app.get("/export-csv")
@@ -575,14 +584,20 @@ def get_recommendations_2(user_id: int):
     if pd.isna(rating):
       continue
     recommendations.append({
-      'resource_name': resources[res_id],
+      'res_id': resources[res_id],
       'rating': rating
     })
 
   # sort the recommended resources by rating (descending order)
   recommendations = sorted(recommendations, key=lambda x: x['rating'], reverse=True)
 
-  return recommendations
+  res_list = [{'res_id': item['res_id'], 'rating': item['rating']} for item in recommendations]
+  res_id_list = [r['res_id'] for r in recommendations]
+
+  data = getResDataByIds(res_list)
+  data.sort(reverse=True, key=lambda x: x['rating'])
+
+  return data
 
 
 

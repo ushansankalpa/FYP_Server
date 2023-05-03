@@ -319,17 +319,18 @@ def insert_resources(res):
         # image_data = res['image'].file.read()
         # encoded_image = base64.b64encode(image_data).decode()
 
+        image_data = base64.b64decode(res['image'])
 
-        with open(res['image'], 'rb') as f:
-            image_data = f.read()
-            encoded_image = base64.b64encode(image_data).decode()
+        # with open(res['image'], 'rb') as f:
+        #     image_data = f.read()
+        #     encoded_image = base64.b64encode(image_data).decode()
 
-        resource = (res['title'], res['desc'], res['link'], encoded_image, res['type'], res['field'])
+        resource = (res['title'], res['desc'], res['link'], image_data, res['type'], res['field'])
         sql = "INSERT INTO resource (title, `desc`, link, image, type, field) VALUES (%s, %s, %s, %s, %s, %s)"
         mycursor.execute(sql, resource)
         mydb.commit()
 
-        return resource
+        return True
 
     except mysql.connector.Error as error:
         print("Error while inserting data to MySQL: {}".format(error))
@@ -598,3 +599,56 @@ def res_search_query(payload):
         mydb.close()
 
 
+def my_ratings(user_id):
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="learnMaster"
+    )
+    mycursor = mydb.cursor()
+
+    try:
+        query = "SELECT res_id, rate FROM ratings WHERE user_id=%s"
+        mycursor.execute(query, (user_id,))
+        ratings = mycursor.fetchall()
+
+        if not ratings:
+            return False
+
+        result = []
+        for rating in ratings:
+            res_id = rating[0]
+            rate = rating[1]
+            sql = "SELECT res_id, title, `desc`, link, image, type, field FROM resource WHERE res_id = %s"
+            mycursor.execute(sql, (res_id,))
+            row = mycursor.fetchone()
+
+            image_path = None
+            if row[4]:
+                image_data = row[4]
+                image_path = "data:image/jpeg;base64," + base64.b64encode(image_data).decode()
+
+            result.append({
+                'res_id': row[0],
+                'title': row[1],
+                'desc': row[2],
+                'link': row[3],
+                'image': image_path,
+                'type': row[5],
+                'field': row[6],
+                'rating': rate
+            })
+
+        return result
+
+
+    except mysql.connector.Error as error:
+        print("Error while inserting data to MySQL: {}".format(error))
+        try:
+            mydb.rollback()
+        except mysql.connector.Error as rollback_error:
+            print("Error while rolling back changes to MySQL: {}".format(rollback_error))
+        return False
+    finally:
+        mydb.close()
